@@ -54,8 +54,6 @@ type todo struct {
 	CreatedAt   time.Time `json:"createdAt"`
 	ModifiedAt  time.Time `json:"modifiedAt"`
 	Task        string    `json:"task"`
-	Completed   bool      `json:"completed"`
-	CompletedAt time.Time `json:"completedAt"`
 }
 
 func (t *todo) String() string {
@@ -81,15 +79,11 @@ func createTask(ctx context.Context, db *mongo.Database) (string, error) {
 		CreatedAt:   now,
 		ModifiedAt:  now,
 		Task:        task,
-		Completed:   false,
-		CompletedAt: now,
 	}
 	res, err := db.Collection(collName).InsertOne(ctx, bson.NewDocument(
 		bson.EC.String("task", t.Task),
-		bson.EC.Boolean("completed", t.Completed),
 		bson.EC.DateTime("createdAt", timeMillis(t.CreatedAt)),
 		bson.EC.DateTime("modifiedAt", timeMillis(t.ModifiedAt)),
-		bson.EC.DateTime("completedAt", timeMillis(t.CompletedAt)),
 	))
 	if err != nil {
 		return "", fmt.Errorf("createCmd: task for to-do list couldn't be created: %v", err)
@@ -108,8 +102,8 @@ func readTasks(ctx context.Context, db *mongo.Database) error {
 		return fmt.Errorf("readTasks: couldn't list all to-dos: %v", err)
 	}
 	defer c.Close(ctx)
-	tw := tabwriter.NewWriter(os.Stdout, 24, 4, 4, ' ', tabwriter.TabIndent)
-	fmt.Fprintln(tw, "ID\tCreated At\tModified At\tTask\tCompleted\tCompleted At")
+	tw := tabwriter.NewWriter(os.Stdout, 24, 2, 4, ' ', tabwriter.TabIndent)
+	fmt.Fprintln(tw, "ID\tCreated At\tModified At\tTask\t")
 	for c.Next(ctx) {
 		elem := bson.NewDocument()
 		if err = c.Decode(elem); err != nil {
@@ -120,16 +114,12 @@ func readTasks(ctx context.Context, db *mongo.Database) error {
 			CreatedAt:   elem.Lookup("createdAt").DateTime().UTC(),
 			ModifiedAt:  elem.Lookup("modifiedAt").DateTime().UTC(),
 			Task:        elem.Lookup("task").StringValue(),
-			Completed:   elem.Lookup("completed").Boolean(),
-			CompletedAt: elem.Lookup("completedAt").DateTime().UTC(),
 		}
-		output := fmt.Sprintf("%s\t%s\t%s\t%s\t%t\t%s",
+		output := fmt.Sprintf("%s\t%s\t%s\t%s\t",
 			t.ID,
 			formatForDisplay(t.CreatedAt),
 			formatForDisplay(t.ModifiedAt),
 			t.Task,
-			t.Completed,
-			formatForDisplay(t.CompletedAt),
 		)
 		fmt.Fprintln(tw, output)
 		if err = tw.Flush(); err != nil {
