@@ -108,7 +108,7 @@ func readTasks(ctx context.Context, db *mongo.Database) error {
 		return fmt.Errorf("readTasks: couldn't list all to-dos: %v", err)
 	}
 	defer c.Close(ctx)
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', tabwriter.TabIndent)
+	tw := tabwriter.NewWriter(os.Stdout, 24, 4, 4, ' ', tabwriter.TabIndent)
 	fmt.Fprintln(tw, "ID\tCreated At\tModified At\tTask\tCompleted\tCompleted At")
 	for c.Next(ctx) {
 		elem := bson.NewDocument()
