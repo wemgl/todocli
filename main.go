@@ -86,7 +86,7 @@ func createTask(ctx context.Context, db *mongo.Database) (string, error) {
 		bson.EC.DateTime("modifiedAt", timeMillis(t.ModifiedAt)),
 	))
 	if err != nil {
-		return "", fmt.Errorf("createCmd: task for to-do list couldn't be created: %v", err)
+		return "", fmt.Errorf("createTask: task for to-do list couldn't be created: %v", err)
 	}
 	id := res.InsertedID.(objectid.ObjectID)
 	return id.Hex(), nil
