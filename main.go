@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mongodb/mongo-go-driver/bson"
-	"github.com/mongodb/mongo-go-driver/bson/objectid"
+	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"github.com/mongodb/mongo-go-driver/mongo"
 	"log"
 	"os"
@@ -50,10 +50,10 @@ To-Do List
 const collName = "todos"
 
 type todo struct {
-	ID          string    `json:"id"`
-	CreatedAt   time.Time `json:"createdAt"`
-	ModifiedAt  time.Time `json:"modifiedAt"`
-	Task        string    `json:"task"`
+	ID         string    `json:"id"`
+	CreatedAt  time.Time `json:"createdAt"`
+	ModifiedAt time.Time `json:"modifiedAt"`
+	Task       string    `json:"task"`
 }
 
 func (t *todo) String() string {
@@ -76,20 +76,23 @@ func createTask(ctx context.Context, db *mongo.Database) (string, error) {
 	}
 	now := time.Now()
 	t := todo{
-		CreatedAt:   now,
-		ModifiedAt:  now,
-		Task:        task,
+		CreatedAt:  now,
+		ModifiedAt: now,
+		Task:       task,
 	}
-	res, err := db.Collection(collName).InsertOne(ctx, bson.NewDocument(
-		bson.EC.String("task", t.Task),
-		bson.EC.DateTime("createdAt", timeMillis(t.CreatedAt)),
-		bson.EC.DateTime("modifiedAt", timeMillis(t.ModifiedAt)),
-	))
+	res, err := db.Collection(collName).InsertOne(ctx, bson.D{
+		{"task", t.Task},
+		{"createdAt", primitive.DateTime(timeMillis(t.CreatedAt))},
+		{"modifiedAt", primitive.DateTime(timeMillis(t.ModifiedAt))},
+	})
 	if err != nil {
 		return "", fmt.Errorf("createCmd: task for to-do list couldn't be created: %v", err)
 	}
-	id := res.InsertedID.(objectid.ObjectID)
-	return id.Hex(), nil
+	return res.InsertedID.(primitive.ObjectID).Hex(), nil
+}
+
+func dateTimeMillis(dt primitive.DateTime) time.Time {
+	return time.Unix(0, int64(dt) * int64(time.Millisecond))
 }
 
 func timeMillis(t time.Time) int64 {
@@ -97,23 +100,24 @@ func timeMillis(t time.Time) int64 {
 }
 
 func readTasks(ctx context.Context, db *mongo.Database) error {
-	c, err := db.Collection(collName).Find(ctx, nil)
+	c, err := db.Collection(collName).Find(ctx, bson.D{})
 	if err != nil {
 		return fmt.Errorf("readTasks: couldn't list all to-dos: %v", err)
 	}
 	defer c.Close(ctx)
 	tw := tabwriter.NewWriter(os.Stdout, 24, 2, 4, ' ', tabwriter.TabIndent)
-	fmt.Fprintln(tw, "ID\tCreated At\tModified At\tTask\t")
+	_, _ = fmt.Fprintln(tw, "ID\tCreated At\tModified At\tTask\t")
 	for c.Next(ctx) {
-		elem := bson.NewDocument()
+		elem := &bson.D{}
 		if err = c.Decode(elem); err != nil {
 			return fmt.Errorf("readTasks: couldn't make to-do item ready for display: %v", err)
 		}
+		m := elem.Map()
 		t := todo{
-			ID:          elem.Lookup("_id").ObjectID().Hex(),
-			CreatedAt:   elem.Lookup("createdAt").DateTime().UTC(),
-			ModifiedAt:  elem.Lookup("modifiedAt").DateTime().UTC(),
-			Task:        elem.Lookup("task").StringValue(),
+			ID:         m["_id"].(primitive.ObjectID).Hex(),
+			CreatedAt:  dateTimeMillis(m["createdAt"].(primitive.DateTime)),
+			ModifiedAt: dateTimeMillis(m["modifiedAt"].(primitive.DateTime)),
+			Task:       m["task"].(string),
 		}
 		output := fmt.Sprintf("%s\t%s\t%s\t%s\t",
 			t.ID,
@@ -121,7 +125,7 @@ func readTasks(ctx context.Context, db *mongo.Database) error {
 			formatForDisplay(t.ModifiedAt),
 			t.Task,
 		)
-		fmt.Fprintln(tw, output)
+		_, _ = fmt.Fprintln(tw, output)
 		if err = tw.Flush(); err != nil {
 			return fmt.Errorf("readTasks: all data for the to-do couldn't be printed: %v", err)
 		}
@@ -150,12 +154,12 @@ func updateTask(ctx context.Context, db *mongo.Database) (string, error) {
 		}
 		break
 	}
-	objectIDS, err := objectid.FromHex(id)
+	objectIDS, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return "", fmt.Errorf("updateTask: couldn't get object ID from given input: %v", err)
 	}
 	var t todo
-	idDoc := bson.NewDocument(bson.EC.ObjectID("_id", objectIDS))
+	idDoc := bson.D{{"_id", objectIDS}}
 	err = db.Collection(collName).FindOne(ctx, idDoc).Decode(&t)
 	if err != nil {
 		return "", fmt.Errorf("updateTask: couldn't decode task from db: %v", err)
@@ -177,14 +181,10 @@ func updateTask(ctx context.Context, db *mongo.Database) (string, error) {
 	_, err = db.Collection(collName).UpdateOne(
 		ctx,
 		idDoc,
-		bson.NewDocument(
-			bson.EC.SubDocumentFromElements("$set",
-				bson.EC.String("task", t.Task),
-			),
-			bson.EC.SubDocumentFromElements("$currentDate",
-				bson.EC.Boolean("modifiedAt", true),
-			),
-		),
+		bson.D{
+			{"$set", bson.D{{"task", t.Task}}},
+			{"$currentDate", bson.D{{"modifiedAt", true}}},
+		},
 	)
 	if err != nil {
 		return "", fmt.Errorf("updateTask: task for to-do list couldn't be created: %v", err)
@@ -206,11 +206,11 @@ func deleteTask(ctx context.Context, db *mongo.Database) (int64, error) {
 		}
 		break
 	}
-	objectIDS, err := objectid.FromHex(id)
+	objectIDS, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return 0, fmt.Errorf("deleteTask: couldn't convert to-do ID from input: %v", err)
 	}
-	idDoc := bson.NewDocument(bson.EC.ObjectID("_id", objectIDS))
+	idDoc := bson.D{{"_id", objectIDS}}
 	res, err := db.Collection(collName).DeleteOne(ctx, idDoc)
 	if err != nil {
 		return 0, fmt.Errorf("deleteTask: couldn't delete to-do from db: %v", err)
@@ -258,7 +258,6 @@ func run(ctx context.Context, db *mongo.Database) error {
 			return fmt.Errorf("run: couldn't execute the previous command: %v", err)
 		}
 	}
-	return nil
 }
 
 func execCmd(ctx context.Context, db *mongo.Database, cmd command) error {
@@ -293,7 +292,6 @@ func execCmd(ctx context.Context, db *mongo.Database, cmd command) error {
 	case exitCmd:
 		fmt.Println("Good-bye!")
 		os.Exit(0)
-		break
 	}
 	return run(ctx, db)
 }
