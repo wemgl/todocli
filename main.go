@@ -82,8 +82,8 @@ func createTask(ctx context.Context, db *mongo.Database) (string, error) {
 	}
 	res, err := db.Collection(collName).InsertOne(ctx, bson.D{
 		{"task", t.Task},
-		{"createdAt", primitive.DateTime(timeMillis(t.CreatedAt))},
-		{"modifiedAt", primitive.DateTime(timeMillis(t.ModifiedAt))},
+		{"createdAt", primitive.DateTime(timeToMillis(t.CreatedAt))},
+		{"modifiedAt", primitive.DateTime(timeToMillis(t.ModifiedAt))},
 	})
 	if err != nil {
 		return "", fmt.Errorf("createTask: task for to-do list couldn't be created: %v", err)
@@ -91,11 +91,11 @@ func createTask(ctx context.Context, db *mongo.Database) (string, error) {
 	return res.InsertedID.(primitive.ObjectID).Hex(), nil
 }
 
-func dateTimeMillis(dt primitive.DateTime) time.Time {
-	return time.Unix(0, int64(dt) * int64(time.Millisecond))
+func dataTimeToTime(dt primitive.DateTime) time.Time {
+	return time.Unix(0, int64(dt)*int64(time.Millisecond))
 }
 
-func timeMillis(t time.Time) int64 {
+func timeToMillis(t time.Time) int64 {
 	return t.UnixNano() / int64(time.Millisecond)
 }
 
@@ -115,8 +115,8 @@ func readTasks(ctx context.Context, db *mongo.Database) error {
 		m := elem.Map()
 		t := todo{
 			ID:         m["_id"].(primitive.ObjectID).Hex(),
-			CreatedAt:  dateTimeMillis(m["createdAt"].(primitive.DateTime)),
-			ModifiedAt: dateTimeMillis(m["modifiedAt"].(primitive.DateTime)),
+			CreatedAt:  dataTimeToTime(m["createdAt"].(primitive.DateTime)),
+			ModifiedAt: dataTimeToTime(m["modifiedAt"].(primitive.DateTime)),
 			Task:       m["task"].(string),
 		}
 		output := fmt.Sprintf("%s\t%s\t%s\t%s\t",
