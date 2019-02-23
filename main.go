@@ -299,10 +299,10 @@ func execCmd(ctx context.Context, db *mongo.Database, cmd command) error {
 
 func configDB(ctx context.Context) (*mongo.Database, error) {
 	uri := fmt.Sprintf(`mongodb://%s:%s@%s/%s`,
-		ctx.Value(usernameKey),
-		ctx.Value(passwordKey),
-		ctx.Value(hostKey),
-		ctx.Value(databaseKey),
+		ctx.Value(usernameKey).(string),
+		ctx.Value(passwordKey).(string),
+		ctx.Value(hostKey).(string),
+		ctx.Value(databaseKey).(string),
 	)
 	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
 	if err != nil {
