@@ -18,8 +18,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type srvURI string
-
 type key string
 
 const (
