@@ -227,13 +227,11 @@ func main() {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	ctx = context.WithValue(ctx, hostKey, os.Getenv("MONGODB_HOST"))
-	ctx = context.WithValue(ctx, usernameKey, os.Getenv("MONGODB_USER"))
-	ctx = context.WithValue(ctx, passwordKey, os.Getenv("MONGODB_PASS"))
-	ctx = context.WithValue(ctx, databaseKey, os.Getenv("MONGODB_DATABASE"))
-	ctx = context.WithValue(ctx, useSrvKey, os.Getenv("MONGODB_USESRV"))
-	fmt.Printf("%T", ctx)
-	fmt.Println("Context:", ctx)
+	ctx = context.WithValue(ctx, hostKey, os.Getenv("TODO_MONGO_HOST"))
+	ctx = context.WithValue(ctx, usernameKey, os.Getenv("TODO_MONGO_USERNAME"))
+	ctx = context.WithValue(ctx, passwordKey, os.Getenv("TODO_MONGO_PASSWORD"))
+	ctx = context.WithValue(ctx, databaseKey, os.Getenv("TODO_MONGO_PASSWORD"))
+	ctx = context.WithValue(ctx, useSrvKey, os.Getenv("TODO_MONGO_USESRV"))
 	db, err := configDB(ctx)
 	if err != nil {
 		log.Fatalf("todo: database configuration failed: %v", err)
@@ -313,7 +311,6 @@ func configDB(ctx context.Context) (*mongo.Database, error) {
 		ctx.Value(hostKey).(string),
 		ctx.Value(databaseKey).(string),
 	)
-	fmt.Printf("HOST: %s", uri)
 	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
 	if err != nil {
 		return nil, fmt.Errorf("todo: couldn't connect to mongo: %v", err)
